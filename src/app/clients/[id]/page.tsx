@@ -44,6 +44,7 @@ export default function ClientWorkspacePage() {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("2d");
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string>("");
 
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [creatingRevision, setCreatingRevision] = useState(false);
@@ -61,21 +62,40 @@ export default function ClientWorkspacePage() {
   useEffect(() => {
     if (!clientId) return;
     let active = true;
-    const fetchLatest = () =>
+    fetch(`/api/clients/${clientId}`)
+      .then(async (res) => {
+        if (res.ok && active) {
+          const data = await res.json();
+          setClient(data.client);
+          setRelatedProposals(data.relatedProposals || [data.client]);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    // Poll only status & communications so active uploads/edits are never overwritten
+    const timer = setInterval(() => {
       fetch(`/api/clients/${clientId}`)
         .then(async (res) => {
-          if (res.ok && active) {
-            const data = await res.json();
-            setClient(data.client);
-            setRelatedProposals(data.relatedProposals || [data.client]);
+          if (!res.ok || !active) return;
+          const data = await res.json();
+          setClient((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: data.client.status,
+                  communications: data.client.communications,
+                }
+              : data.client
+          );
+          if (data.relatedProposals) {
+            setRelatedProposals(data.relatedProposals);
           }
         })
-        .finally(() => {
-          if (active) setLoading(false);
-        });
+        .catch(() => {});
+    }, 10000);
 
-    fetchLatest();
-    const timer = setInterval(fetchLatest, 10000);
     return () => {
       active = false;
       clearInterval(timer);
@@ -96,7 +116,14 @@ export default function ClientWorkspacePage() {
         setClient(data.client);
         setSavedBanner(true);
         setTimeout(() => setSavedBanner(false), 2000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setUploadError(
+          errData.error || `Failed to save changes (${res.status})`
+        );
       }
+    } catch {
+      setUploadError("Network error while saving changes.");
     } finally {
       setSaving(false);
     }
@@ -108,13 +135,30 @@ export default function ClientWorkspacePage() {
   ): Promise<{ url: string; fileName: string; fileType: string } | null> {
     if (!client) return null;
     setUploadingKey(key);
+    setUploadError("");
     try {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("clientId", client.id);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const text = await res.text();
+        let msg = `Upload failed (${res.status})`;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed.error) msg = parsed.error;
+        } catch {
+          if (res.status === 413) {
+            msg = "File is too large for Vercel upload limit (max ~4.5 MB).";
+          }
+        }
+        setUploadError(msg);
+        return null;
+      }
       return await res.json();
+    } catch {
+      setUploadError("Network error while uploading file.");
+      return null;
     } finally {
       setUploadingKey(null);
     }
@@ -410,6 +454,17 @@ export default function ClientWorkspacePage() {
 
         {/* Left: Upload & Asset Tabs */}
         <div className="lg:col-span-8 space-y-5">
+          {uploadError && (
+            <div className="flex items-center justify-between border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700">
+              <span>{uploadError}</span>
+              <button
+                onClick={() => setUploadError("")}
+                className="ml-3 text-rose-500 hover:text-rose-800 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {/* Unique URL Banner */}
           <div className="flex flex-col gap-2 border border-[#D9D4CA] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
