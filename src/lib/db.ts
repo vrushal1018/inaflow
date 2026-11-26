@@ -5,33 +5,48 @@ import { ClientProfile, CompanyProfile } from "./types";
 import { DEFAULT_COMPANY_PROFILE } from "./defaults";
 
 const MONGODB_URI = process.env.MONGODB_URI || "";
-const LOCAL_DB_PATH = path.join(process.cwd(), "data", "inaflow-db.json");
+const IS_VERCEL = Boolean(process.env.VERCEL);
+const LOCAL_DB_PATH = IS_VERCEL
+  ? path.join("/tmp", "inaflow-db.json")
+  : path.join(process.cwd(), "data", "inaflow-db.json");
+const LOCAL_UPLOAD_DIR = IS_VERCEL
+  ? path.join("/tmp", "inaflow-uploads")
+  : path.join(process.cwd(), "public", "uploads");
 
 interface LocalStore {
   company: CompanyProfile;
   clients: ClientProfile[];
 }
 
+interface StoredFileDoc {
+  id: string;
+  clientId: string;
+  fileName: string;
+  fileType: string;
+  data: Buffer;
+  createdAt: string;
+}
+
 declare global {
   var _mongoosePromise: Promise<typeof mongoose> | undefined;
-  var _mongoFailed: boolean | undefined;
 }
 
 async function connectMongo(): Promise<boolean> {
   if (!MONGODB_URI) return false;
-  if (global._mongoFailed) return false;
   try {
     if (mongoose.connection.readyState === 1) return true;
     if (!global._mongoosePromise) {
       global._mongoosePromise = mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 4000,
+        serverSelectionTimeoutMS: 5000,
       });
     }
     await global._mongoosePromise;
     return true;
   } catch (err) {
-    console.warn("[inaflow] MongoDB unavailable, using local JSON store:", (err as Error).message);
-    global._mongoFailed = true;
+    console.warn(
+      "[inaflow] MongoDB unavailable, using fallback store:",
+      (err as Error).message
+    );
     global._mongoosePromise = undefined;
     return false;
   }
@@ -84,6 +99,8 @@ const ClientSchema = new Schema<ClientProfile>(
   {
     id: { type: String, required: true, unique: true },
     slug: { type: String, required: true, unique: true, index: true },
+    clientGroupId: { type: String, index: true },
+    versionLabel: { type: String, default: "Proposal v1" },
     clientName: { type: String, required: true },
     projectName: { type: String, default: "" },
     mobile: { type: String, default: "" },
@@ -103,6 +120,18 @@ const ClientSchema = new Schema<ClientProfile>(
   { timestamps: false, strict: false }
 );
 
+const UploadedFileSchema = new Schema<StoredFileDoc>(
+  {
+    id: { type: String, required: true, unique: true, index: true },
+    clientId: { type: String, required: true },
+    fileName: { type: String, required: true },
+    fileType: { type: String, required: true },
+    data: { type: Buffer, required: true },
+    createdAt: String,
+  },
+  { timestamps: false }
+);
+
 const CompanyModel: Model<CompanyProfile> =
   mongoose.models.CompanyProfile ||
   mongoose.model<CompanyProfile>("CompanyProfile", CompanySchema);
@@ -110,6 +139,10 @@ const CompanyModel: Model<CompanyProfile> =
 const ClientModel: Model<ClientProfile> =
   mongoose.models.ClientProfile ||
   mongoose.model<ClientProfile>("ClientProfile", ClientSchema);
+
+const UploadedFileModel: Model<StoredFileDoc> =
+  mongoose.models.UploadedFile ||
+  mongoose.model<StoredFileDoc>("UploadedFile", UploadedFileSchema);
 
 async function readLocalStore(): Promise<LocalStore> {
   try {
@@ -141,7 +174,10 @@ export async function getCompanyProfile(): Promise<CompanyProfile> {
       await CompanyModel.create(DEFAULT_COMPANY_PROFILE);
       return DEFAULT_COMPANY_PROFILE;
     }
-    const { _id, __v, ...rest } = doc as CompanyProfile & { _id?: unknown; __v?: unknown };
+    const { _id, __v, ...rest } = doc as CompanyProfile & {
+      _id?: unknown;
+      __v?: unknown;
+    };
     void _id;
     void __v;
     if (rest.companyName === "SUNROOOF") {
@@ -191,7 +227,10 @@ export async function saveCompanyProfile(
   };
 
   if (await connectMongo()) {
-    await CompanyModel.findOneAndUpdate({}, updated, { upsert: true, new: true });
+    await CompanyModel.findOneAndUpdate({}, updated, {
+      upsert: true,
+      new: true,
+    });
     return updated;
   }
   const store = await readLocalStore();
@@ -204,7 +243,10 @@ export async function listClients(): Promise<ClientProfile[]> {
   if (await connectMongo()) {
     const docs = await ClientModel.find().sort({ updatedAt: -1 }).lean();
     return docs.map((d) => {
-      const { _id, __v, ...rest } = d as ClientProfile & { _id?: unknown; __v?: unknown };
+      const { _id, __v, ...rest } = d as ClientProfile & {
+        _id?: unknown;
+        __v?: unknown;
+      };
       void _id;
       void __v;
       return rest;
@@ -220,7 +262,10 @@ export async function getClientById(id: string): Promise<ClientProfile | null> {
   if (await connectMongo()) {
     const doc = await ClientModel.findOne({ id }).lean();
     if (!doc) return null;
-    const { _id, __v, ...rest } = doc as ClientProfile & { _id?: unknown; __v?: unknown };
+    const { _id, __v, ...rest } = doc as ClientProfile & {
+      _id?: unknown;
+      __v?: unknown;
+    };
     void _id;
     void __v;
     return rest;
@@ -229,11 +274,16 @@ export async function getClientById(id: string): Promise<ClientProfile | null> {
   return store.clients.find((c) => c.id === id) || null;
 }
 
-export async function getClientBySlug(slug: string): Promise<ClientProfile | null> {
+export async function getClientBySlug(
+  slug: string
+): Promise<ClientProfile | null> {
   if (await connectMongo()) {
     const doc = await ClientModel.findOne({ slug }).lean();
     if (!doc) return null;
-    const { _id, __v, ...rest } = doc as ClientProfile & { _id?: unknown; __v?: unknown };
+    const { _id, __v, ...rest } = doc as ClientProfile & {
+      _id?: unknown;
+      __v?: unknown;
+    };
     void _id;
     void __v;
     return rest;
@@ -242,7 +292,9 @@ export async function getClientBySlug(slug: string): Promise<ClientProfile | nul
   return store.clients.find((c) => c.slug === slug) || null;
 }
 
-export async function createClient(client: ClientProfile): Promise<ClientProfile> {
+export async function createClient(
+  client: ClientProfile
+): Promise<ClientProfile> {
   if (await connectMongo()) {
     await ClientModel.create(client);
     return client;
@@ -290,4 +342,77 @@ export async function deleteClient(id: string): Promise<boolean> {
   store.clients = store.clients.filter((c) => c.id !== id);
   await writeLocalStore(store);
   return store.clients.length < before;
+}
+
+export async function saveUploadedFile(file: {
+  id: string;
+  clientId: string;
+  fileName: string;
+  fileType: string;
+  buffer: Buffer;
+}): Promise<void> {
+  if (await connectMongo()) {
+    await UploadedFileModel.create({
+      id: file.id,
+      clientId: file.clientId,
+      fileName: file.fileName,
+      fileType: file.fileType,
+      data: file.buffer,
+      createdAt: new Date().toISOString(),
+    });
+    return;
+  }
+  const dir = path.join(LOCAL_UPLOAD_DIR, file.clientId);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    path.join(dir, `${file.id}.meta.json`),
+    JSON.stringify({ fileName: file.fileName, fileType: file.fileType })
+  );
+  await fs.writeFile(path.join(dir, file.id), file.buffer);
+}
+
+export async function getUploadedFile(id: string): Promise<{
+  fileName: string;
+  fileType: string;
+  buffer: Buffer;
+} | null> {
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (await connectMongo()) {
+    const doc = await UploadedFileModel.findOne({ id: safeId }).lean();
+    if (!doc) return null;
+    const raw = doc.data as unknown;
+    const buffer = Buffer.isBuffer(raw)
+      ? raw
+      : Buffer.from((raw as { buffer: Uint8Array }).buffer || (raw as Uint8Array));
+    return {
+      fileName: doc.fileName,
+      fileType: doc.fileType,
+      buffer,
+    };
+  }
+  try {
+    const entries = await fs.readdir(LOCAL_UPLOAD_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(LOCAL_UPLOAD_DIR, entry.name, safeId);
+      try {
+        const buffer = await fs.readFile(candidate);
+        const metaRaw = await fs.readFile(`${candidate}.meta.json`, "utf-8");
+        const meta = JSON.parse(metaRaw) as {
+          fileName: string;
+          fileType: string;
+        };
+        return {
+          fileName: meta.fileName,
+          fileType: meta.fileType,
+          buffer,
+        };
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }

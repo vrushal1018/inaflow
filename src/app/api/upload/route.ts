@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import crypto from "crypto";
+import { saveUploadedFile } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,22 +17,21 @@ export async function POST(req: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const id = `${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
+    const fileType = file.type || "application/octet-stream";
 
-    const ext = path.extname(file.name) || "";
-    const safeBase = path
-      .basename(file.name, ext)
-      .replace(/[^a-zA-Z0-9_-]/g, "_")
-      .slice(0, 40);
-    const uniqueName = `${Date.now()}_${crypto.randomBytes(3).toString("hex")}_${safeBase}${ext}`;
-
-    const uploadDir = path.join(process.cwd(), "public", "uploads", clientId);
-    await fs.mkdir(uploadDir, { recursive: true });
-    await fs.writeFile(path.join(uploadDir, uniqueName), buffer);
+    await saveUploadedFile({
+      id,
+      clientId: clientId || "general",
+      fileName: file.name,
+      fileType,
+      buffer,
+    });
 
     return NextResponse.json({
-      url: `/uploads/${clientId}/${uniqueName}`,
+      url: `/api/files/${id}`,
       fileName: file.name,
-      fileType: file.type || "application/octet-stream",
+      fileType,
     });
   } catch (err) {
     return NextResponse.json(
