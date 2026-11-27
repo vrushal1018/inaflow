@@ -163,23 +163,27 @@ function parseSheetRows(rows: unknown[][]): {
     const qty = colMap.qty >= 0 ? cleanNumber(row[colMap.qty]) : 0;
     const rate = colMap.rate >= 0 ? cleanNumber(row[colMap.rate]) : 0;
     const total = colMap.total >= 0 ? cleanNumber(row[colMap.total]) : 0;
+    const unitRaw =
+      colMap.unit >= 0 ? String(row[colMap.unit] ?? "").trim() : "";
+    const isLumpSumUnit = /^(ls|l\.s\.?|lumpsum|lump\s*sum|lot|job)$/i.test(
+      unitRaw
+    );
 
-    // Skip summary / subtotal / grand total rows so they are never double-counted
+    // Skip summary / subtotal / grand total / head-of-work summary rows so they are never double-counted
     if (
-      lowerDesc.startsWith("total") ||
-      lowerDesc.startsWith("sub total") ||
-      lowerDesc.startsWith("sub-total") ||
-      lowerDesc.startsWith("subtotal") ||
-      lowerDesc.startsWith("grand total") ||
-      lowerDesc.startsWith("net total") ||
-      lowerDesc.startsWith("summary") ||
-      (qty === 0 && rate === 0 && lowerDesc.includes("total"))
+      /^(total|sub\s*-?\s*total|grand\s*total|net\s*total|net\s*amount|summary|abstract)/i.test(
+        lowerDesc
+      ) ||
+      ((qty === 0 || rate === 0) &&
+        /\b(total|subtotal|sub-total|abstract|summary|carried\s*forward|brought\s*forward)\b/i.test(
+          lowerDesc
+        ))
     ) {
       continue;
     }
 
-    // Section / category header row (text in description, no numeric qty/rate/total)
-    if (qty === 0 && rate === 0 && total === 0) {
+    // Section / category header row (no numeric qty/rate; even if Excel puts a section subtotal in Total column)
+    if (qty === 0 && rate === 0 && !isLumpSumUnit) {
       currentCategory = descRaw;
       continue;
     }
@@ -204,7 +208,7 @@ function parseSheetRows(rows: unknown[][]): {
       floor:
         colMap.floor >= 0 ? String(row[colMap.floor] ?? "").trim() : "",
       area: colMap.area >= 0 ? String(row[colMap.area] ?? "").trim() : "",
-      unit: colMap.unit >= 0 ? String(row[colMap.unit] ?? "").trim() : "",
+      unit: unitRaw,
       unitPrice: Math.round(resolvedRate * 100) / 100,
       qty: resolvedQty,
       totalPrice: Math.round(resolvedTotal * 100) / 100,
