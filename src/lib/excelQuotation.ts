@@ -4,7 +4,11 @@ import type { QuotationLineItem } from "./types";
 function cleanNumber(val: unknown): number {
   if (typeof val === "number") return Number.isFinite(val) ? val : 0;
   if (typeof val !== "string") return 0;
-  const cleaned = val.replace(/[₹$,\s]/g, "").trim();
+  // Strip currency symbols, Rs., INR, commas, /- and spaces
+  const cleaned = val
+    .replace(/rs\.?|inr|₹|\$|\/-|,|\s/gi, "")
+    .trim();
+  if (!cleaned || cleaned === "-" || cleaned === ".") return 0;
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : 0;
 }
@@ -16,24 +20,11 @@ function normHeader(val: unknown): string {
     .trim();
 }
 
-export function parseQuotationWorkbook(buffer: ArrayBuffer): {
+function parseSheetRows(rows: unknown[][]): {
   items: QuotationLineItem[];
-  sheetName: string;
   categoriesCount: number;
+  detectedTaxPercent: number;
 } {
-  const wb = XLSX.read(buffer, { type: "array" });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) {
-    return { items: [], sheetName: "", categoriesCount: 0 };
-  }
-
-  const sheet = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: "",
-  });
-
-  // Locate header row by matching common BOQ / Quotation column names
   let headerIdx = -1;
   let colMap = {
     sNo: -1,
@@ -47,7 +38,7 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
     total: -1,
   };
 
-  for (let r = 0; r < Math.min(rows.length, 30); r++) {
+  for (let r = 0; r < Math.min(rows.length, 35); r++) {
     const row = rows[r] || [];
     const candidate = {
       sNo: -1,
@@ -64,31 +55,44 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
     row.forEach((cell, c) => {
       const h = normHeader(cell);
       if (!h) return;
+
       if (
         candidate.sNo === -1 &&
-        (h === "s no" || h === "sno" || h === "sr no" || h === "no" || h === "item no")
+        (h === "s no" ||
+          h === "sno" ||
+          h === "sr no" ||
+          h === "sr" ||
+          h === "no" ||
+          h === "sl no" ||
+          h === "item no")
       ) {
         candidate.sNo = c;
       } else if (
         candidate.category === -1 &&
-        (h.includes("category") || h.includes("section") || h.includes("group"))
+        (h === "category" ||
+          h === "section" ||
+          h === "head" ||
+          h === "group" ||
+          h === "trade")
       ) {
         candidate.category = c;
       } else if (
         candidate.desc === -1 &&
         (h.includes("particular") ||
           h.includes("description") ||
-          h.includes("scope") ||
-          h.includes("item") ||
-          h.includes("design") ||
-          h.includes("work"))
+          h === "scope" ||
+          h === "item" ||
+          h === "items" ||
+          h.includes("item name") ||
+          h.includes("design and finish") ||
+          h.includes("work description"))
       ) {
         candidate.desc = c;
-      } else if (candidate.floor === -1 && h.includes("floor")) {
+      } else if (candidate.floor === -1 && (h === "floor" || h === "level")) {
         candidate.floor = c;
       } else if (
         candidate.area === -1 &&
-        (h.includes("area") || h.includes("room") || h.includes("location"))
+        (h === "area" || h === "room" || h === "location" || h === "space")
       ) {
         candidate.area = c;
       } else if (
@@ -97,18 +101,27 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
       ) {
         candidate.unit = c;
       } else if (
-        candidate.rate === -1 &&
-        (h.includes("rate") || h.includes("unit price") || h === "price")
-      ) {
-        candidate.rate = c;
-      } else if (
         candidate.qty === -1 &&
-        (h === "qty" || h.includes("quantity"))
+        (h === "qty" || h === "quantity" || h === "qnty" || h === "nos")
       ) {
         candidate.qty = c;
       } else if (
+        candidate.rate === -1 &&
+        (h === "rate" ||
+          h === "unit rate" ||
+          h === "unit price" ||
+          h === "price" ||
+          h.includes("rate per"))
+      ) {
+        candidate.rate = c;
+      } else if (
         candidate.total === -1 &&
-        (h.includes("amount") || h.includes("total"))
+        (h === "amount" ||
+          h === "total" ||
+          h === "total amount" ||
+          h === "total price" ||
+          h === "net amount" ||
+          h === "value")
       ) {
         candidate.total = c;
       }
@@ -122,25 +135,14 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
     }
   }
 
-  // Fallback: if no explicit header matched, assume [S.No, Description, Qty, Rate, Total]
   if (headerIdx === -1) {
-    headerIdx = 0;
-    colMap = {
-      sNo: 0,
-      category: -1,
-      desc: 1,
-      floor: -1,
-      area: -1,
-      unit: -1,
-      qty: 2,
-      rate: 3,
-      total: 4,
-    };
+    return { items: [], categoriesCount: 0, detectedTaxPercent: 0 };
   }
 
   const items: QuotationLineItem[] = [];
   let currentCategory = "General";
   const categorySet = new Set<string>();
+  let detectedTaxPercent = 0;
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r] || [];
@@ -148,14 +150,13 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
     if (!descRaw) continue;
 
     const lowerDesc = descRaw.toLowerCase();
-    if (
-      lowerDesc.startsWith("total") ||
-      lowerDesc.startsWith("sub total") ||
-      lowerDesc.startsWith("subtotal") ||
-      lowerDesc.startsWith("grand total") ||
-      lowerDesc.startsWith("gst") ||
-      lowerDesc.startsWith("tax")
-    ) {
+
+    // Detect explicit GST percentage if a GST row exists
+    if (lowerDesc.includes("gst") || lowerDesc.includes("tax")) {
+      const pctMatch = descRaw.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (pctMatch) {
+        detectedTaxPercent = Number(pctMatch[1]) || 0;
+      }
       continue;
     }
 
@@ -163,7 +164,21 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
     const rate = colMap.rate >= 0 ? cleanNumber(row[colMap.rate]) : 0;
     const total = colMap.total >= 0 ? cleanNumber(row[colMap.total]) : 0;
 
-    // Detect section/category header rows (text in description, no numeric qty/rate/total)
+    // Skip summary / subtotal / grand total rows so they are never double-counted
+    if (
+      lowerDesc.startsWith("total") ||
+      lowerDesc.startsWith("sub total") ||
+      lowerDesc.startsWith("sub-total") ||
+      lowerDesc.startsWith("subtotal") ||
+      lowerDesc.startsWith("grand total") ||
+      lowerDesc.startsWith("net total") ||
+      lowerDesc.startsWith("summary") ||
+      (qty === 0 && rate === 0 && lowerDesc.includes("total"))
+    ) {
+      continue;
+    }
+
+    // Section / category header row (text in description, no numeric qty/rate/total)
     if (qty === 0 && rate === 0 && total === 0) {
       currentCategory = descRaw;
       continue;
@@ -174,9 +189,11 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
         ? String(row[colMap.category]).trim()
         : currentCategory;
 
-    const resolvedQty = qty || 1;
-    const resolvedTotal = total || rate * resolvedQty;
-    const resolvedRate = rate || (resolvedQty ? resolvedTotal / resolvedQty : 0);
+    const resolvedQty = qty > 0 ? qty : 1;
+    // Prefer exact Excel total when present; otherwise compute rate * qty
+    const resolvedTotal = total > 0 ? total : rate * resolvedQty;
+    const resolvedRate =
+      rate > 0 ? rate : resolvedQty > 0 ? resolvedTotal / resolvedQty : 0;
 
     categorySet.add(rowCategory);
 
@@ -196,7 +213,46 @@ export function parseQuotationWorkbook(buffer: ArrayBuffer): {
 
   return {
     items,
-    sheetName,
     categoriesCount: categorySet.size,
+    detectedTaxPercent,
   };
+}
+
+export function parseQuotationWorkbook(buffer: ArrayBuffer): {
+  items: QuotationLineItem[];
+  sheetName: string;
+  categoriesCount: number;
+  detectedTaxPercent: number;
+} {
+  const wb = XLSX.read(buffer, { type: "array" });
+  let best: {
+    items: QuotationLineItem[];
+    sheetName: string;
+    categoriesCount: number;
+    detectedTaxPercent: number;
+  } = {
+    items: [],
+    sheetName: wb.SheetNames[0] || "",
+    categoriesCount: 0,
+    detectedTaxPercent: 0,
+  };
+
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: "",
+      raw: true,
+    });
+    const parsed = parseSheetRows(rows);
+    if (parsed.items.length > best.items.length) {
+      best = {
+        ...parsed,
+        sheetName: name,
+      };
+    }
+  }
+
+  return best;
 }

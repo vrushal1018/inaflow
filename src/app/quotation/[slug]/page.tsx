@@ -1043,15 +1043,21 @@ export default function ClientProposalPage() {
                         })}
                       </strong>
                     </p>
-                    <p>
-                      TAX @ {taxPct}%:{" "}
-                      <strong>
-                        {currency}{" "}
-                        {taxAmount.toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </strong>
-                    </p>
+                    {taxPct > 0 ? (
+                      <p>
+                        TAX @ {taxPct}%:{" "}
+                        <strong>
+                          {currency}{" "}
+                          {taxAmount.toLocaleString("en-IN", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </strong>
+                      </p>
+                    ) : (
+                      <p className="text-[#5C6670]">
+                        GST: Extra, if applicable
+                      </p>
+                    )}
                     <p className="pt-1 text-base font-semibold text-[#111111]">
                       Grand Total: {currency}{" "}
                       {grandTotal.toLocaleString("en-IN", {

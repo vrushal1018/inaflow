@@ -874,6 +874,8 @@ export default function ClientWorkspacePage() {
                             ...client.quotation,
                             excelFileName: file.name,
                             items: parsed.items,
+                            taxPercent: parsed.detectedTaxPercent,
+                            freightAndInstallation: 0,
                           };
                           setClient({ ...client, quotation: nextQ });
                           await persistClient({ quotation: nextQ });
