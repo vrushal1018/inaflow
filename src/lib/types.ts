@@ -75,9 +75,11 @@ export interface Design3DItem {
 
 export interface QuotationLineItem {
   sNo: number;
+  category?: string;
   designAndFinish: string;
   floor: string;
   area: string;
+  unit?: string;
   unitPrice: number;
   qty: number;
   totalPrice: number;
@@ -87,6 +89,7 @@ export interface QuotationData {
   documentUrl?: string;
   documentName?: string;
   documentType?: string;
+  excelFileName?: string;
   items: QuotationLineItem[];
   raftersDelivery: string;
   consolesDelivery: string;

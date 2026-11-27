@@ -33,9 +33,10 @@ export default function ClientProposalPage() {
   // 3D Carousel state
   const [active3DIndex, setActive3DIndex] = useState(0);
 
-  // Interactive Quotation state (tick/untick + editable client price)
+  // Interactive Quotation state (tick/untick + editable client price + category accordions)
   const [excludedIndices, setExcludedIndices] = useState<Record<number, boolean>>({});
   const [customPrices, setCustomPrices] = useState<Record<number, string>>({});
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [copiedSummary, setCopiedSummary] = useState(false);
 
   // Acceptance & Portal Communication state
@@ -71,6 +72,20 @@ export default function ClientProposalPage() {
   }, [slug]);
 
   const items = useMemo(() => client?.quotation?.items || [], [client]);
+
+  const groupedCategories = useMemo(() => {
+    const map = new Map<string, { item: (typeof items)[number]; origIdx: number }[]>();
+    items.forEach((item, origIdx) => {
+      const cat = item.category?.trim() || "Scope & Items";
+      const list = map.get(cat) || [];
+      list.push({ item, origIdx });
+      map.set(cat, list);
+    });
+    return Array.from(map.entries()).map(([category, rows]) => ({
+      category,
+      rows,
+    }));
+  }, [items]);
 
   const selectedWorksTotal = useMemo(() => {
     return items.reduce((sum, item, idx) => {
@@ -774,23 +789,49 @@ export default function ClientProposalPage() {
               </div>
             )}
 
-            {/* Interactive Quotation Table */}
+            {/* Interactive Quotation Table (Grouped by Category) */}
             {items.length > 0 && (
               <div className="mt-6 border border-[#D9D4CA]">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D9D4CA] bg-[#F4F2EE] px-4 py-2.5 text-xs text-[#5C6670]">
                   <span>
                     Tick or untick items, or enter your own target price per row.
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExcludedIndices({});
-                      setCustomPrices({});
-                    }}
-                    className="font-medium text-[#2495D3] hover:underline cursor-pointer"
-                  >
-                    Reset to full scope
-                  </button>
+                  <div className="flex items-center gap-4">
+                    {groupedCategories.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCollapsed = groupedCategories.every(
+                            (g) => collapsedCategories[g.category]
+                          );
+                          const next: Record<string, boolean> = {};
+                          if (!allCollapsed) {
+                            groupedCategories.forEach((g) => {
+                              next[g.category] = true;
+                            });
+                          }
+                          setCollapsedCategories(next);
+                        }}
+                        className="font-medium text-[#111111] hover:underline cursor-pointer"
+                      >
+                        {groupedCategories.every(
+                          (g) => collapsedCategories[g.category]
+                        )
+                          ? "Expand all"
+                          : "Collapse all"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExcludedIndices({});
+                        setCustomPrices({});
+                      }}
+                      className="font-medium text-[#2495D3] hover:underline cursor-pointer"
+                    >
+                      Reset to full scope
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -802,6 +843,7 @@ export default function ClientProposalPage() {
                         <th className="px-4 py-3 font-medium">Scope / Item</th>
                         <th className="px-3 py-3 font-medium">Floor</th>
                         <th className="px-3 py-3 font-medium">Area</th>
+                        <th className="px-3 py-3 font-medium">Unit</th>
                         <th className="px-3 py-3 text-right font-medium">
                           Unit Price
                         </th>
@@ -817,64 +859,116 @@ export default function ClientProposalPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#D9D4CA] bg-white">
-                      {items.map((item, idx) => {
-                        const dropped = Boolean(excludedIndices[idx]);
+                      {groupedCategories.map(({ category, rows }) => {
+                        const isCollapsed = Boolean(collapsedCategories[category]);
+                        const catTotal = rows.reduce((sum, { item, origIdx }) => {
+                          if (excludedIndices[origIdx]) return sum;
+                          const override = customPrices[origIdx];
+                          const val =
+                            override !== undefined && override !== ""
+                              ? Number(override) || 0
+                              : Number(item.totalPrice) || 0;
+                          return sum + val;
+                        }, 0);
+
                         return (
-                          <tr
-                            key={idx}
-                            className={dropped ? "opacity-45 bg-[#F4F2EE]" : ""}
-                          >
-                            <td className="px-3 py-3">
-                              <input
-                                type="checkbox"
-                                checked={!dropped}
-                                onChange={(e) =>
-                                  setExcludedIndices((prev) => ({
-                                    ...prev,
-                                    [idx]: !e.target.checked,
-                                  }))
-                                }
-                                className="h-4 w-4 accent-[#2495D3] cursor-pointer"
-                              />
-                            </td>
-                            <td className="px-3 py-3 text-[#5C6670]">
-                              {idx + 1}
-                            </td>
-                            <td className="px-4 py-3 font-medium text-[#111111]">
-                              {item.designAndFinish}
-                            </td>
-                            <td className="px-3 py-3 text-[#3E464F]">
-                              {item.floor}
-                            </td>
-                            <td className="px-3 py-3 text-[#3E464F]">
-                              {item.area}
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              {currency} {item.unitPrice.toLocaleString("en-IN")}
-                            </td>
-                            <td className="px-3 py-3 text-right">{item.qty}</td>
-                            <td className="px-4 py-3 text-right font-semibold">
-                              {currency}{" "}
-                              {item.totalPrice.toLocaleString("en-IN", {
-                                minimumFractionDigits: 2,
+                          <React.Fragment key={category}>
+                            <tr
+                              onClick={() =>
+                                setCollapsedCategories((prev) => ({
+                                  ...prev,
+                                  [category]: !prev[category],
+                                }))
+                              }
+                              className="cursor-pointer bg-[#F4F2EE] hover:bg-[#DCEBF5]/40"
+                            >
+                              <td colSpan={8} className="px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold tracking-wider uppercase text-[#111111]">
+                                    {isCollapsed ? "+" : "−"} {category}
+                                  </span>
+                                  <span className="border border-[#D9D4CA] bg-white px-2 py-0.5 text-[10px] font-medium text-[#5C6670]">
+                                    {rows.length} items
+                                  </span>
+                                </div>
+                              </td>
+                              <td
+                                colSpan={2}
+                                className="px-4 py-2.5 text-right text-xs font-semibold text-[#2495D3]"
+                              >
+                                {currency} {catTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                            {!isCollapsed &&
+                              rows.map(({ item, origIdx }) => {
+                                const dropped = Boolean(excludedIndices[origIdx]);
+                                return (
+                                  <tr
+                                    key={origIdx}
+                                    className={
+                                      dropped ? "opacity-45 bg-[#F4F2EE]/50" : ""
+                                    }
+                                  >
+                                    <td className="px-3 py-3">
+                                      <input
+                                        type="checkbox"
+                                        checked={!dropped}
+                                        onChange={(e) =>
+                                          setExcludedIndices((prev) => ({
+                                            ...prev,
+                                            [origIdx]: !e.target.checked,
+                                          }))
+                                        }
+                                        className="h-4 w-4 accent-[#2495D3] cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-3 text-[#5C6670]">
+                                      {origIdx + 1}
+                                    </td>
+                                    <td className="px-4 py-3 font-medium text-[#111111]">
+                                      {item.designAndFinish}
+                                    </td>
+                                    <td className="px-3 py-3 text-[#3E464F]">
+                                      {item.floor || "—"}
+                                    </td>
+                                    <td className="px-3 py-3 text-[#3E464F]">
+                                      {item.area || "—"}
+                                    </td>
+                                    <td className="px-3 py-3 text-[#5C6670]">
+                                      {item.unit || "—"}
+                                    </td>
+                                    <td className="px-3 py-3 text-right">
+                                      {currency}{" "}
+                                      {item.unitPrice.toLocaleString("en-IN")}
+                                    </td>
+                                    <td className="px-3 py-3 text-right">
+                                      {item.qty}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-semibold">
+                                      {currency}{" "}
+                                      {item.totalPrice.toLocaleString("en-IN", {
+                                        minimumFractionDigits: 2,
+                                      })}
+                                    </td>
+                                    <td className="px-4 py-2 text-right">
+                                      <input
+                                        type="number"
+                                        disabled={dropped}
+                                        placeholder={String(item.totalPrice)}
+                                        value={customPrices[origIdx] ?? ""}
+                                        onChange={(e) =>
+                                          setCustomPrices((prev) => ({
+                                            ...prev,
+                                            [origIdx]: e.target.value,
+                                          }))
+                                        }
+                                        className="w-28 border border-[#D9D4CA] px-2 py-1 text-right text-xs outline-none focus:border-[#2495D3]"
+                                      />
+                                    </td>
+                                  </tr>
+                                );
                               })}
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <input
-                                type="number"
-                                disabled={dropped}
-                                placeholder={String(item.totalPrice)}
-                                value={customPrices[idx] ?? ""}
-                                onChange={(e) =>
-                                  setCustomPrices((prev) => ({
-                                    ...prev,
-                                    [idx]: e.target.value,
-                                  }))
-                                }
-                                className="w-28 border border-[#D9D4CA] px-2 py-1 text-right text-xs outline-none focus:border-[#2495D3]"
-                              />
-                            </td>
-                          </tr>
+                          </React.Fragment>
                         );
                       })}
                     </tbody>

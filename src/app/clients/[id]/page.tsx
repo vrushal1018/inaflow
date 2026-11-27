@@ -28,6 +28,7 @@ import type {
   ProposalStatus,
   QuotationLineItem,
 } from "@/lib/types";
+import { parseQuotationWorkbook } from "@/lib/excelQuotation";
 
 type TabKey = "2d" | "3d" | "quotation" | "invoice" | "details";
 
@@ -845,39 +846,104 @@ export default function ClientWorkspacePage() {
                 <div>
                   <h2 className="text-base font-medium">Quotation</h2>
                   <p className="text-xs text-[#5C6670]">
-                    Upload a Quotation file (PNG/PDF) and/or build the itemized
-                    quotation table.
+                    Import an Excel / CSV BOQ sheet to render an enhanced
+                    interactive quotation, or upload a PNG/PDF.
                   </p>
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 border border-[#D9D4CA] bg-[#F4F2EE] px-3.5 py-2 text-xs font-medium text-[#111111] hover:border-[#111111]">
-                  <Upload className="h-3.5 w-3.5 text-[#2495D3]" />
-                  {uploadingKey === "quotation-doc"
-                    ? "Uploading..."
-                    : client.quotation?.documentUrl
-                      ? "Replace Quotation File"
-                      : "Upload Quotation File"}
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const up = await uploadFile(file, "quotation-doc");
-                      if (up) {
-                        const nextQ = {
-                          ...client.quotation,
-                          documentUrl: up.url,
-                          documentName: up.fileName,
-                          documentType: up.fileType,
-                        };
-                        setClient({ ...client, quotation: nextQ });
-                        persistClient({ quotation: nextQ });
-                      }
-                    }}
-                  />
-                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 border-[1.5px] border-[#2495D3] bg-[#2495D3] px-3.5 py-2 text-xs font-medium tracking-wider uppercase text-white hover:bg-[#1B7DB5]">
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Import Excel / CSV
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadError("");
+                        try {
+                          const buf = await file.arrayBuffer();
+                          const parsed = parseQuotationWorkbook(buf);
+                          if (!parsed.items.length) {
+                            setUploadError(
+                              "No quotation line items found in that Excel sheet. Ensure columns like Description/Particulars, Qty, Rate, or Amount are present."
+                            );
+                            return;
+                          }
+                          const nextQ = {
+                            ...client.quotation,
+                            excelFileName: file.name,
+                            items: parsed.items,
+                          };
+                          setClient({ ...client, quotation: nextQ });
+                          await persistClient({ quotation: nextQ });
+                        } catch {
+                          setUploadError(
+                            "Could not parse Excel file. Please check the format (.xlsx, .xls, or .csv)."
+                          );
+                        } finally {
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 border border-[#D9D4CA] bg-[#F4F2EE] px-3.5 py-2 text-xs font-medium text-[#111111] hover:border-[#111111]">
+                    <Upload className="h-3.5 w-3.5 text-[#2495D3]" />
+                    {uploadingKey === "quotation-doc"
+                      ? "Uploading..."
+                      : client.quotation?.documentUrl
+                        ? "Replace PDF/Image"
+                        : "Upload PDF/Image"}
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const up = await uploadFile(file, "quotation-doc");
+                        if (up) {
+                          const nextQ = {
+                            ...client.quotation,
+                            documentUrl: up.url,
+                            documentName: up.fileName,
+                            documentType: up.fileType,
+                          };
+                          setClient({ ...client, quotation: nextQ });
+                          persistClient({ quotation: nextQ });
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
+
+              {client.quotation?.excelFileName && (
+                <div className="flex items-center justify-between border border-[#2495D3]/30 bg-[#DCEBF5]/50 px-4 py-2.5 text-xs">
+                  <span>
+                    Imported from{" "}
+                    <strong>{client.quotation.excelFileName}</strong> (
+                    {client.quotation.items?.length || 0} line items)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextQ = {
+                        ...client.quotation,
+                        excelFileName: undefined,
+                        items: [],
+                      };
+                      setClient({ ...client, quotation: nextQ });
+                      persistClient({ quotation: nextQ });
+                    }}
+                    className="text-rose-600 hover:underline cursor-pointer"
+                  >
+                    Clear items
+                  </button>
+                </div>
+              )}
 
               {client.quotation?.documentUrl && (
                 <div className="flex items-center justify-between border border-[#D9D4CA] bg-[#F4F2EE] p-3">
