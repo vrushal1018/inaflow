@@ -26,7 +26,6 @@ import type {
   Design2DItem,
   Design3DItem,
   ProposalStatus,
-  QuotationLineItem,
 } from "@/lib/types";
 import { parseQuotationWorkbook } from "@/lib/excelQuotation";
 
@@ -980,254 +979,69 @@ export default function ClientWorkspacePage() {
                 </div>
               )}
 
-              {/* Structured Line Items */}
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-xs font-medium tracking-[0.2em] text-[#5C6670] uppercase">
-                    Itemized Quotation Table
-                  </h3>
-                  <button
-                    onClick={() => {
-                      const items = client.quotation?.items || [];
-                      const newRow: QuotationLineItem = {
-                        sNo: items.length + 1,
-                        designAndFinish: "Workstation & Acoustic Partition",
-                        floor: "1st Floor",
-                        area: "Open Office",
-                        unitPrice: 45000,
-                        qty: 1,
-                        totalPrice: 45000,
-                      };
-                      setClient({
-                        ...client,
-                        quotation: {
-                          ...client.quotation,
-                          items: [...items, newRow],
-                        },
-                      });
-                    }}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[#2495D3] hover:underline cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Line Item
-                  </button>
-                </div>
-
-                {(client.quotation?.items || []).length > 0 && (
+              {/* Read-only Enhanced Preview of Imported Excel Items */}
+              {(client.quotation?.items || []).length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-medium tracking-[0.2em] text-[#5C6670] uppercase">
+                      Parsed Quotation Preview ({client.quotation.items.length} items)
+                    </h3>
+                    <span className="text-xs font-semibold text-[#111111]">
+                      Grand Total: {client.quotation?.currencySymbol || "₹"}{" "}
+                      {grandTotal.toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
                   <div className="overflow-x-auto border border-[#D9D4CA]">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#2495D3] text-white">
                         <tr>
                           <th className="px-3 py-2">#</th>
+                          <th className="px-3 py-2">Category</th>
                           <th className="px-3 py-2">Scope / Item</th>
-                          <th className="px-3 py-2">Floor</th>
-                          <th className="px-3 py-2">Area</th>
-                          <th className="px-3 py-2">Unit Price</th>
-                          <th className="px-3 py-2">Qty</th>
-                          <th className="px-3 py-2">Total</th>
-                          <th className="px-2 py-2"></th>
+                          <th className="px-3 py-2">Unit</th>
+                          <th className="px-3 py-2 text-right">Rate</th>
+                          <th className="px-3 py-2 text-right">Qty</th>
+                          <th className="px-3 py-2 text-right">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#D9D4CA]">
                         {client.quotation.items.map((row, idx) => (
                           <tr key={idx}>
+                            <td className="px-3 py-2 text-[#5C6670]">{idx + 1}</td>
                             <td className="px-3 py-2 text-[#5C6670]">
-                              {idx + 1}
+                              {row.category || "General"}
                             </td>
-                            <td className="px-2 py-1.5">
-                              <input
-                                type="text"
-                                value={row.designAndFinish}
-                                onChange={(e) => {
-                                  const next = [...client.quotation.items];
-                                  next[idx] = {
-                                    ...row,
-                                    designAndFinish: e.target.value,
-                                  };
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="w-40 border border-[#D9D4CA] px-2 py-1"
-                              />
+                            <td className="px-3 py-2 font-medium text-[#111111]">
+                              {row.designAndFinish}
                             </td>
-                            <td className="px-2 py-1.5">
-                              <input
-                                type="text"
-                                value={row.floor}
-                                onChange={(e) => {
-                                  const next = [...client.quotation.items];
-                                  next[idx] = { ...row, floor: e.target.value };
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="w-24 border border-[#D9D4CA] px-2 py-1"
-                              />
+                            <td className="px-3 py-2 text-[#5C6670]">
+                              {row.unit || "—"}
                             </td>
-                            <td className="px-2 py-1.5">
-                              <input
-                                type="text"
-                                value={row.area}
-                                onChange={(e) => {
-                                  const next = [...client.quotation.items];
-                                  next[idx] = { ...row, area: e.target.value };
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="w-24 border border-[#D9D4CA] px-2 py-1"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <input
-                                type="number"
-                                value={row.unitPrice}
-                                onChange={(e) => {
-                                  const unitPrice = Number(e.target.value) || 0;
-                                  const next = [...client.quotation.items];
-                                  next[idx] = {
-                                    ...row,
-                                    unitPrice,
-                                    totalPrice: unitPrice * row.qty,
-                                  };
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="w-24 border border-[#D9D4CA] px-2 py-1"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <input
-                                type="number"
-                                value={row.qty}
-                                onChange={(e) => {
-                                  const qty = Number(e.target.value) || 0;
-                                  const next = [...client.quotation.items];
-                                  next[idx] = {
-                                    ...row,
-                                    qty,
-                                    totalPrice: row.unitPrice * qty,
-                                  };
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="w-16 border border-[#D9D4CA] px-2 py-1"
-                              />
-                            </td>
-                            <td className="px-3 py-2 font-medium">
+                            <td className="px-3 py-2 text-right">
                               {client.quotation.currencySymbol || "₹"}{" "}
-                              {row.totalPrice.toLocaleString("en-IN")}
+                              {row.unitPrice.toLocaleString("en-IN")}
                             </td>
-                            <td className="px-2 py-1.5">
-                              <button
-                                onClick={() => {
-                                  const next = client.quotation.items.filter(
-                                    (_, i) => i !== idx
-                                  );
-                                  setClient({
-                                    ...client,
-                                    quotation: {
-                                      ...client.quotation,
-                                      items: next,
-                                    },
-                                  });
-                                }}
-                                className="text-[#5C6670] hover:text-rose-600 cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                            <td className="px-3 py-2 text-right">{row.qty}</td>
+                            <td className="px-3 py-2 text-right font-semibold">
+                              {client.quotation.currencySymbol || "₹"}{" "}
+                              {row.totalPrice.toLocaleString("en-IN", {
+                                minimumFractionDigits: 2,
+                              })}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )}
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                      Freight, Installation &amp; Handling
-                    </label>
-                    <input
-                      type="number"
-                      value={client.quotation?.freightAndInstallation || 0}
-                      onChange={(e) =>
-                        setClient({
-                          ...client,
-                          quotation: {
-                            ...client.quotation,
-                            freightAndInstallation: Number(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                      Tax (%)
-                    </label>
-                    <input
-                      type="number"
-                      value={client.quotation?.taxPercent ?? 18}
-                      onChange={(e) =>
-                        setClient({
-                          ...client,
-                          quotation: {
-                            ...client.quotation,
-                            taxPercent: Number(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
-                    />
-                  </div>
-                  <div className="border border-[#D9D4CA] bg-[#F4F2EE] p-3 text-right">
-                    <p className="text-[11px] text-[#5C6670]">Grand Total</p>
-                    <p className="text-base font-semibold text-[#111111]">
-                      {client.quotation?.currencySymbol || "₹"}{" "}
-                      {grandTotal.toLocaleString("en-IN", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </p>
-                  </div>
                 </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() =>
-                      persistClient({ quotation: client.quotation })
-                    }
-                    className="inline-flex items-center gap-1.5 border-[1.5px] border-[#2495D3] bg-[#2495D3] px-4 py-2 text-xs font-medium tracking-wider uppercase text-white hover:bg-[#1B7DB5] cursor-pointer"
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    Save Quotation
-                  </button>
+              ) : !client.quotation?.documentUrl ? (
+                <div className="border border-dashed border-[#D9D4CA] p-8 text-center text-xs text-[#5C6670]">
+                  Upload an Excel / CSV sheet or PDF/Image quotation above. It
+                  will automatically appear on the client&apos;s proposal URL.
                 </div>
-              </div>
+              ) : null}
             </div>
           )}
 
@@ -1238,8 +1052,8 @@ export default function ClientWorkspacePage() {
                 <div>
                   <h2 className="text-base font-medium">Invoice</h2>
                   <p className="text-xs text-[#5C6670]">
-                    Upload the client&apos;s invoice PDF/image and track payment
-                    status.
+                    Upload the client&apos;s invoice PDF or image — no manual entry
+                    needed.
                   </p>
                 </div>
                 <label className="inline-flex cursor-pointer items-center gap-1.5 border-[1.5px] border-[#2495D3] bg-[#2495D3] px-3.5 py-2 text-xs font-medium tracking-wider uppercase text-white hover:bg-[#1B7DB5]">
@@ -1265,145 +1079,79 @@ export default function ClientWorkspacePage() {
                           documentType: up.fileType,
                         };
                         setClient({ ...client, invoice: nextInv });
-                        persistClient({ invoice: nextInv });
+                        await persistClient({ invoice: nextInv });
                       }
                     }}
                   />
                 </label>
               </div>
 
-              {client.invoice?.documentUrl && (
-                <div className="flex items-center justify-between border border-[#D9D4CA] bg-[#F4F2EE] p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-5 w-5 shrink-0 text-[#2495D3]" />
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">
-                        {client.invoice.documentName}
-                      </p>
-                      <a
-                        href={client.invoice.documentUrl}
-                        target="_blank"
-                        className="text-[11px] text-[#2495D3] hover:underline"
-                      >
-                        Open uploaded invoice &rarr;
-                      </a>
+              {client.invoice?.documentUrl ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border border-[#D9D4CA] bg-[#F4F2EE] p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="h-5 w-5 shrink-0 text-[#2495D3]" />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium">
+                          {client.invoice.documentName}
+                        </p>
+                        <a
+                          href={client.invoice.documentUrl}
+                          target="_blank"
+                          className="text-[11px] text-[#2495D3] hover:underline"
+                        >
+                          Open uploaded invoice &rarr;
+                        </a>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => {
+                        const nextInv = {
+                          ...client.invoice,
+                          documentUrl: undefined,
+                          documentName: undefined,
+                          documentType: undefined,
+                        };
+                        setClient({ ...client, invoice: nextInv });
+                        persistClient({ invoice: nextInv });
+                      }}
+                      className="p-1.5 text-[#5C6670] hover:text-rose-600 cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      const nextInv = {
-                        ...client.invoice,
-                        documentUrl: undefined,
-                        documentName: undefined,
-                        documentType: undefined,
-                      };
-                      setClient({ ...client, invoice: nextInv });
-                      persistClient({ invoice: nextInv });
-                    }}
-                    className="p-1.5 text-[#5C6670] hover:text-rose-600 cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                    Invoice Number
-                  </label>
-                  <input
-                    type="text"
-                    value={client.invoice?.invoiceNumber || ""}
-                    onChange={(e) =>
-                      setClient({
-                        ...client,
-                        invoice: {
-                          ...client.invoice,
-                          invoiceNumber: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="INA-INV-2026-001"
-                    className="w-full border border-[#D9D4CA] px-3.5 py-2 text-xs outline-none focus:border-[#2495D3]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                    Invoice Date
-                  </label>
-                  <input
-                    type="text"
-                    value={client.invoice?.invoiceDate || ""}
-                    onChange={(e) =>
-                      setClient({
-                        ...client,
-                        invoice: {
-                          ...client.invoice,
-                          invoiceDate: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="25-Nov-26"
-                    className="w-full border border-[#D9D4CA] px-3.5 py-2 text-xs outline-none focus:border-[#2495D3]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                    Invoice Amount
-                  </label>
-                  <input
-                    type="number"
-                    value={client.invoice?.amount || ""}
-                    onChange={(e) =>
-                      setClient({
-                        ...client,
-                        invoice: {
-                          ...client.invoice,
-                          amount: Number(e.target.value) || 0,
-                        },
-                      })
-                    }
-                    placeholder="719092"
-                    className="w-full border border-[#D9D4CA] px-3.5 py-2 text-xs outline-none focus:border-[#2495D3]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
-                    Payment Status
-                  </label>
-                  <select
-                    value={client.invoice?.paymentStatus || "Pending"}
-                    onChange={(e) =>
-                      setClient({
-                        ...client,
-                        invoice: {
+                  <div className="flex items-center justify-between border border-[#D9D4CA] px-4 py-3 text-xs">
+                    <span className="font-medium text-[#3E464F]">
+                      Payment Status
+                    </span>
+                    <select
+                      value={client.invoice?.paymentStatus || "Pending"}
+                      onChange={async (e) => {
+                        const nextInv = {
                           ...client.invoice,
                           paymentStatus: e.target.value as
                             | "Pending"
                             | "Advance Paid"
                             | "Paid",
-                        },
-                      })
-                    }
-                    className="w-full border border-[#D9D4CA] bg-white px-3.5 py-2 text-xs outline-none focus:border-[#2495D3]"
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Advance Paid">50% Advance Paid</option>
-                    <option value="Paid">Paid in Full</option>
-                  </select>
+                        };
+                        setClient({ ...client, invoice: nextInv });
+                        await persistClient({ invoice: nextInv });
+                      }}
+                      className="border border-[#D9D4CA] bg-white px-3 py-1.5 text-xs outline-none focus:border-[#2495D3]"
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Advance Paid">50% Advance Paid</option>
+                      <option value="Paid">Paid in Full</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => persistClient({ invoice: client.invoice })}
-                  className="inline-flex items-center gap-1.5 border-[1.5px] border-[#2495D3] bg-[#2495D3] px-4 py-2 text-xs font-medium tracking-wider uppercase text-white hover:bg-[#1B7DB5] cursor-pointer"
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  Save Invoice
-                </button>
-              </div>
+              ) : (
+                <div className="border border-dashed border-[#D9D4CA] p-8 text-center text-xs text-[#5C6670]">
+                  No invoice uploaded yet. Click &ldquo;Upload Invoice File&rdquo;
+                  above to attach a PDF or image.
+                </div>
+              )}
             </div>
           )}
 
