@@ -11,13 +11,12 @@ import {
   Copy,
   Download,
   Menu,
-  MessageSquare,
   Send,
   ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
-import { InaLogo } from "@/components/InaLogo";
+import { BrandSymbols, InaDivider, InaLogo } from "@/components/InaLogo";
 import type { ClientProfile, CompanyProfile } from "@/lib/types";
 
 export default function ClientProposalPage() {
@@ -33,9 +32,10 @@ export default function ClientProposalPage() {
   // 3D Carousel state
   const [active3DIndex, setActive3DIndex] = useState(0);
 
-  // Interactive Quotation state (tick/untick + editable client price + category accordions)
+  // Interactive Quotation state (tick/untick + editable client price + section override + category accordions)
   const [excludedIndices, setExcludedIndices] = useState<Record<number, boolean>>({});
   const [customPrices, setCustomPrices] = useState<Record<number, string>>({});
+  const [sectionPrices, setSectionPrices] = useState<Record<string, string>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [copiedSummary, setCopiedSummary] = useState(false);
 
@@ -88,16 +88,23 @@ export default function ClientProposalPage() {
   }, [items]);
 
   const selectedWorksTotal = useMemo(() => {
-    return items.reduce((sum, item, idx) => {
-      if (excludedIndices[idx]) return sum;
-      const override = customPrices[idx];
-      const val =
-        override !== undefined && override !== ""
-          ? Number(override) || 0
-          : Number(item.totalPrice) || 0;
-      return sum + val;
+    return groupedCategories.reduce((acc, { category, rows }) => {
+      const secOverride = sectionPrices[category];
+      if (secOverride !== undefined && secOverride !== "") {
+        return acc + (Number(secOverride) || 0);
+      }
+      const rowSum = rows.reduce((sum, { item, origIdx }) => {
+        if (excludedIndices[origIdx]) return sum;
+        const override = customPrices[origIdx];
+        const val =
+          override !== undefined && override !== ""
+            ? Number(override) || 0
+            : Number(item.totalPrice) || 0;
+        return sum + val;
+      }, 0);
+      return acc + rowSum;
     }, 0);
-  }, [items, excludedIndices, customPrices]);
+  }, [groupedCategories, excludedIndices, customPrices, sectionPrices]);
 
   async function submitPortalAction(action: "message" | "approve" | "revision") {
     if (!slug) return;
@@ -224,6 +231,7 @@ export default function ClientProposalPage() {
 
   return (
     <div id="top" className="min-h-screen bg-[#F4F2EE] text-[#111111]">
+      <BrandSymbols />
       {/* Sticky Header Bar */}
       <header className="sticky top-0 z-40 h-[72px] border-b border-[#D9D4CA] bg-[#F4F2EE]/95 backdrop-blur">
         <div className="mx-auto flex h-full max-w-[1200px] items-center justify-between px-4 sm:px-6">
@@ -826,6 +834,7 @@ export default function ClientProposalPage() {
                       onClick={() => {
                         setExcludedIndices({});
                         setCustomPrices({});
+                        setSectionPrices({});
                       }}
                       className="font-medium text-[#2495D3] hover:underline cursor-pointer"
                     >
@@ -861,7 +870,7 @@ export default function ClientProposalPage() {
                     <tbody className="divide-y divide-[#D9D4CA] bg-white">
                       {groupedCategories.map(({ category, rows }) => {
                         const isCollapsed = Boolean(collapsedCategories[category]);
-                        const catTotal = rows.reduce((sum, { item, origIdx }) => {
+                        const lineCatTotal = rows.reduce((sum, { item, origIdx }) => {
                           if (excludedIndices[origIdx]) return sum;
                           const override = customPrices[origIdx];
                           const val =
@@ -870,6 +879,11 @@ export default function ClientProposalPage() {
                               : Number(item.totalPrice) || 0;
                           return sum + val;
                         }, 0);
+                        const secOverride = sectionPrices[category];
+                        const catTotal =
+                          secOverride !== undefined && secOverride !== ""
+                            ? Number(secOverride) || 0
+                            : lineCatTotal;
 
                         return (
                           <React.Fragment key={category}>
@@ -892,11 +906,28 @@ export default function ClientProposalPage() {
                                   </span>
                                 </div>
                               </td>
+                              <td className="px-4 py-2.5 text-right text-xs font-semibold text-[#2495D3]">
+                                {currency}{" "}
+                                {catTotal.toLocaleString("en-IN", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </td>
                               <td
-                                colSpan={2}
-                                className="px-4 py-2.5 text-right text-xs font-semibold text-[#2495D3]"
+                                className="px-4 py-2 text-right"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                {currency} {catTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                <input
+                                  type="number"
+                                  placeholder="Section price"
+                                  value={sectionPrices[category] ?? ""}
+                                  onChange={(e) =>
+                                    setSectionPrices((prev) => ({
+                                      ...prev,
+                                      [category]: e.target.value,
+                                    }))
+                                  }
+                                  className="w-28 border border-[#D9D4CA] bg-white px-2 py-1 text-right text-xs outline-none focus:border-[#2495D3]"
+                                />
                               </td>
                             </tr>
                             {!isCollapsed &&
@@ -1274,16 +1305,27 @@ export default function ClientProposalPage() {
       {/* 12. Acceptance / Sign-Off & Communication (#accept) */}
       <section id="accept" className="bg-[#F4F2EE] px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl border border-[#D9D4CA] bg-white p-6 sm:p-8">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-[#2495D3]" />
-            <h2 className="text-2xl font-light tracking-[-0.01em]">
-              Ready to <strong className="font-semibold">begin?</strong>
-            </h2>
+          <InaDivider />
+          <div className="mt-4 flex items-center gap-3">
+            <img
+              src={
+                client.status === "Approved"
+                  ? "/img/dot-done-blue.svg"
+                  : "/img/dot-hello-blue.svg"
+              }
+              alt="Dot, the Ina SpaceWorks assistant"
+              className="h-12 w-12 shrink-0"
+            />
+            <div>
+              <h2 className="text-2xl font-light tracking-[-0.01em]">
+                Ready to <strong className="font-semibold">begin?</strong>
+              </h2>
+              <p className="mt-0.5 text-xs text-[#5C6670]">
+                Accept the proposal below or send questions/revision notes
+                directly to {company.companyName}.
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs text-[#5C6670]">
-            Accept the proposal below or send questions/revision notes directly to{" "}
-            {company.companyName}.
-          </p>
 
           {/* Accepted Confirmation Card */}
           {client.status === "Approved" && (
