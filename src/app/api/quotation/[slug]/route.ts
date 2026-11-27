@@ -56,14 +56,29 @@ export async function POST(req: NextRequest, context: RouteCtx) {
     };
 
     let nextStatus: ProposalStatus = client.status;
-    if (action === "approve") nextStatus = "Approved";
-    else if (action === "revision") nextStatus = "Revision Requested";
+    let acceptance = client.acceptance;
+
+    if (action === "approve") {
+      nextStatus = "Approved";
+      acceptance = {
+        acceptedByName: String(body.acceptedByName || client.clientName).trim(),
+        acceptedByMobile: String(body.acceptedByMobile || client.mobile || "").trim(),
+        acceptedByEmail: String(body.acceptedByEmail || client.email || "").trim(),
+        acceptedAt: new Date().toISOString(),
+        selectedWorksTotal:
+          body.selectedWorksTotal !== undefined
+            ? Number(body.selectedWorksTotal)
+            : undefined,
+        notes: message || undefined,
+      };
+    } else if (action === "revision") nextStatus = "Revision Requested";
     else if (client.status === "Sent" || client.status === "Draft") {
       nextStatus = "In Discussion";
     }
 
     const updated = await updateClient(client.id, {
       status: nextStatus,
+      acceptance,
       communications: [entry, ...(client.communications || [])],
     });
 

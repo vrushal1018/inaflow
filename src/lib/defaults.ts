@@ -68,6 +68,24 @@ export const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
     "All deliverables undergo Manageworks quality checks prior to final handover.",
     "This proposal supersedes all prior verbal or written estimates for the specified scope.",
   ],
+  paymentMilestones: [
+    { percent: "50%", label: "Advance on proposal acceptance" },
+    { percent: "25%", label: "Mid-execution milestone" },
+    { percent: "25%", label: "Prior to final handover" },
+  ],
+  includedItems: [
+    "2D space planning & working drawings",
+    "3D interior views & material selection",
+    "Turnkey execution & MEPF supervision",
+    "Joint measurement & quality checks",
+    "Post-handover Careworks support",
+  ],
+  notIncludedItems: [
+    "Applicable GST & statutory taxes",
+    "Society permissions & refundable deposits",
+    "Loose appliances & personal decor items",
+    "Structural alterations beyond approved scope",
+  ],
   contact: {
     phone: "+91 9156 802 555",
     email: "evolve@inaspaceworks.com",

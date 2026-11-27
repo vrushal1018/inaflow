@@ -17,6 +17,11 @@ export interface BuyingJourneyStep {
   subtitle: string;
 }
 
+export interface PaymentMilestone {
+  percent: string;
+  label: string;
+}
+
 export interface CompanyProfile {
   companyName: string;
   tagline: string;
@@ -33,6 +38,9 @@ export interface CompanyProfile {
   buyingJourney: BuyingJourneyStep[];
   termsTitle: string;
   termsAndConditions: string[];
+  paymentMilestones?: PaymentMilestone[];
+  includedItems?: string[];
+  notIncludedItems?: string[];
   contact: {
     phone: string;
     email: string;
@@ -107,11 +115,34 @@ export interface CommunicationEntry {
   createdAt: string;
 }
 
+export interface BriefItem {
+  id: string;
+  title: string;
+  detail: string;
+}
+
+export interface AcceptanceRecord {
+  acceptedByName: string;
+  acceptedByMobile?: string;
+  acceptedByEmail?: string;
+  acceptedAt: string;
+  selectedWorksTotal?: number;
+  notes?: string;
+}
+
 export interface ClientProfile {
   id: string;
   slug: string;
   clientGroupId?: string;
   versionLabel?: string;
+  proposalRef?: string;
+  validDays?: string;
+  engagementType?: string;
+  contractTarget?: number;
+  consultancyFee?: number;
+  carpetArea?: string;
+  timeOnSite?: string;
+  currentJourneyStep?: number;
   clientName: string;
   projectName: string;
   mobile: string;
@@ -120,10 +151,12 @@ export interface ClientProfile {
   zone: string;
   proposalDate: string;
   status: ProposalStatus;
+  briefItems?: BriefItem[];
   designs2D: Design2DItem[];
   designs3D: Design3DItem[];
   quotation: QuotationData;
   invoice: InvoiceData;
+  acceptance?: AcceptanceRecord;
   communications: CommunicationEntry[];
   createdAt: string;
   updatedAt: string;

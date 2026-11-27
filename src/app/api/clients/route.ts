@@ -74,11 +74,31 @@ export async function POST(req: NextRequest) {
       })
       .replace(/ /g, "-");
 
+    const refToken = crypto.randomBytes(2).toString("hex").toUpperCase();
     const client: ClientProfile = {
       id,
       slug,
       clientGroupId,
       versionLabel,
+      proposalRef: String(
+        body.proposalRef || `ISW/PR/26-27/${refToken}`
+      ),
+      validDays: String(body.validDays || source?.validDays || "30 days"),
+      engagementType: String(
+        body.engagementType || source?.engagementType || "Design & Build"
+      ),
+      contractTarget:
+        body.contractTarget !== undefined
+          ? Number(body.contractTarget) || undefined
+          : source?.contractTarget,
+      consultancyFee:
+        body.consultancyFee !== undefined
+          ? Number(body.consultancyFee) || undefined
+          : source?.consultancyFee,
+      carpetArea: String(body.carpetArea || source?.carpetArea || ""),
+      timeOnSite: String(body.timeOnSite || source?.timeOnSite || ""),
+      currentJourneyStep:
+        body.currentJourneyStep ?? source?.currentJourneyStep ?? 2,
       clientName,
       projectName,
       mobile: String(body.mobile ?? source?.mobile ?? "").trim(),
@@ -87,6 +107,7 @@ export async function POST(req: NextRequest) {
       zone: String(body.zone ?? source?.zone ?? "").trim(),
       proposalDate: String(body.proposalDate || formattedDate),
       status: "Draft",
+      briefItems: source ? source.briefItems || [] : [],
       designs2D: source ? source.designs2D || [] : [],
       designs3D: source ? source.designs3D || [] : [],
       quotation: source

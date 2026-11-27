@@ -1436,7 +1436,195 @@ export default function ClientWorkspacePage() {
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
+                    Proposal Ref &amp; Validity
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={client.proposalRef || ""}
+                      placeholder="ISW/PR/26-27/001"
+                      onChange={(e) =>
+                        setClient({ ...client, proposalRef: e.target.value })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                    <input
+                      type="text"
+                      value={client.validDays || ""}
+                      placeholder="30 days"
+                      onChange={(e) =>
+                        setClient({ ...client, validDays: e.target.value })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
+                    Engagement Type &amp; Journey Step (1-6)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={client.engagementType || ""}
+                      placeholder="Design & Build"
+                      onChange={(e) =>
+                        setClient({ ...client, engagementType: e.target.value })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      max={6}
+                      value={client.currentJourneyStep ?? 2}
+                      onChange={(e) =>
+                        setClient({
+                          ...client,
+                          currentJourneyStep: Number(e.target.value) || 2,
+                        })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
+                    Contract Target Budget &amp; Consultancy Fee
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      value={client.contractTarget ?? ""}
+                      placeholder="Target e.g. 1900000"
+                      onChange={(e) =>
+                        setClient({
+                          ...client,
+                          contractTarget: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                    <input
+                      type="number"
+                      value={client.consultancyFee ?? ""}
+                      placeholder="Fee e.g. 100000"
+                      onChange={(e) =>
+                        setClient({
+                          ...client,
+                          consultancyFee: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#3E464F]">
+                    Carpet Area &amp; Time on Site
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={client.carpetArea || ""}
+                      placeholder="About 1,000 sq.ft"
+                      onChange={(e) =>
+                        setClient({ ...client, carpetArea: e.target.value })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                    <input
+                      type="text"
+                      value={client.timeOnSite || ""}
+                      placeholder="About 3 months"
+                      onChange={(e) =>
+                        setClient({ ...client, timeOnSite: e.target.value })
+                      }
+                      className="w-full border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                    />
+                  </div>
+                </div>
               </div>
+
+              {/* Client Brief Summary Cards */}
+              <div className="border-t border-[#D9D4CA] pt-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-[#5C6670]">
+                      Your Brief Summary Cards
+                    </h3>
+                    <p className="text-[11px] text-[#5C6670]">
+                      Key requirements captured from the client (e.g. Height, Storage, Bedroom).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setClient({
+                        ...client,
+                        briefItems: [
+                          ...(client.briefItems || []),
+                          {
+                            id: crypto.randomUUID(),
+                            title: "",
+                            detail: "",
+                          },
+                        ],
+                      })
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[#2495D3] hover:underline cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Brief Card
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {(client.briefItems || []).map((item, idx) => (
+                    <div key={item.id} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={item.title}
+                        placeholder="Title (e.g. Storage)"
+                        onChange={(e) => {
+                          const next = [...(client.briefItems || [])];
+                          next[idx] = { ...item, title: e.target.value };
+                          setClient({ ...client, briefItems: next });
+                        }}
+                        className="w-1/3 border border-[#D9D4CA] px-3 py-2 text-xs font-medium outline-none focus:border-[#2495D3]"
+                      />
+                      <input
+                        type="text"
+                        value={item.detail}
+                        placeholder="Details (e.g. Full-height wardrobes + lofts)"
+                        onChange={(e) => {
+                          const next = [...(client.briefItems || [])];
+                          next[idx] = { ...item, detail: e.target.value };
+                          setClient({ ...client, briefItems: next });
+                        }}
+                        className="flex-1 border border-[#D9D4CA] px-3 py-2 text-xs outline-none focus:border-[#2495D3]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = (client.briefItems || []).filter(
+                            (_, i) => i !== idx
+                          );
+                          setClient({ ...client, briefItems: next });
+                        }}
+                        className="p-2 text-[#5C6670] hover:text-rose-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex justify-end pt-2">
                 <button
                   onClick={() =>
@@ -1448,6 +1636,15 @@ export default function ClientWorkspacePage() {
                       siteAddress: client.siteAddress,
                       zone: client.zone,
                       proposalDate: client.proposalDate,
+                      proposalRef: client.proposalRef,
+                      validDays: client.validDays,
+                      engagementType: client.engagementType,
+                      contractTarget: client.contractTarget,
+                      consultancyFee: client.consultancyFee,
+                      carpetArea: client.carpetArea,
+                      timeOnSite: client.timeOnSite,
+                      currentJourneyStep: client.currentJourneyStep,
+                      briefItems: client.briefItems,
                     })
                   }
                   className="inline-flex items-center gap-1.5 border-[1.5px] border-[#2495D3] bg-[#2495D3] px-4 py-2 text-xs font-medium tracking-wider uppercase text-white hover:bg-[#1B7DB5] cursor-pointer"

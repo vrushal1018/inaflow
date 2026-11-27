@@ -187,14 +187,32 @@ export async function getCompanyProfile(): Promise<CompanyProfile> {
       });
       return DEFAULT_COMPANY_PROFILE;
     }
-    return rest;
+    return {
+      ...DEFAULT_COMPANY_PROFILE,
+      ...rest,
+      paymentMilestones:
+        rest.paymentMilestones?.length
+          ? rest.paymentMilestones
+          : DEFAULT_COMPANY_PROFILE.paymentMilestones,
+      includedItems:
+        rest.includedItems?.length
+          ? rest.includedItems
+          : DEFAULT_COMPANY_PROFILE.includedItems,
+      notIncludedItems:
+        rest.notIncludedItems?.length
+          ? rest.notIncludedItems
+          : DEFAULT_COMPANY_PROFILE.notIncludedItems,
+    };
   }
   const store = await readLocalStore();
   if (store.company?.companyName === "SUNROOOF") {
     store.company = DEFAULT_COMPANY_PROFILE;
     await writeLocalStore(store);
   }
-  return store.company || DEFAULT_COMPANY_PROFILE;
+  return {
+    ...DEFAULT_COMPANY_PROFILE,
+    ...(store.company || {}),
+  };
 }
 
 export async function resetCompanyProfile(): Promise<CompanyProfile> {
